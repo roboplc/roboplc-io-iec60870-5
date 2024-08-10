@@ -32,9 +32,9 @@ timeouts. In case if a remote does not respond, a request with no timeout gets s
 ## IEC 60870-5 101 (Serial)
 
 The crate does not provide any client for IEC 60870-5 101 (Serial) as such does
-not require re-connection. Any communication library plus [IEC
-60870-5](https://crates.io/crates/iec60870-5) crate can be used to create/parse
-IEC 60870-5 101 telegrams.
+not require re-connection or a special telegram processing logic. Any
+communication library plus [IEC 60870-5](https://crates.io/crates/iec60870-5)
+crate can be used to create/parse IEC 60870-5 101 telegrams.
 
 ## IEC 60870-5 104 (TCP)
 
