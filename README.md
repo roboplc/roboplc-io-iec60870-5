@@ -36,8 +36,6 @@ not require re-connection. Any communication library plus [IEC
 60870-5](https://crates.io/crates/iec60870-5) crate can be used to create/parse
 IEC 60870-5 101 telegrams.
 
-```rust,no_run
-
 ## IEC 60870-5 104 (TCP)
 
 ## Connecting a client
