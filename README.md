@@ -38,7 +38,7 @@ crate can be used to create/parse IEC 60870-5 101 telegrams.
 
 ## IEC 60870-5 104 (TCP)
 
-## Connecting a client
+### Connecting a client
 
 ```rust,no_run
 use roboplc::comm::Timeouts;
