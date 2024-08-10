@@ -6,7 +6,7 @@ authors = ["Serhij S. <div@altertech.com>"]
 license-file = "LICENSE.md"
 description = "RoboPLC I/O connector for TwinCAT/ADS"
 repository = "https://github.com/roboplc/roboplc-io-iec60870-5"
-keywords = ["realtime", "plc", "industrial", "iec 60870-5-101", "iec 60870-5-104"]
+keywords = ["realtime", "plc", "industrial", "iec", "60870-5"]
 readme = "README.md"
 autoexamples = false
 
