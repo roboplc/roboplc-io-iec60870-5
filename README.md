@@ -17,6 +17,16 @@ The crate IS NOT FREE for any commercial or production use. Please refer to
 <https://github.com/roboplc/roboplc-io-iec60870-5/blob/main/LICENSE.md> for
 more information.
 
+The client additionally supports:
+
+- Auto-reconnects
+- Multi-threading
+- Real-time safety
+- Enterprise support from the vendor
+
+Note: as the client has got an asynchronous-manner reader loop, it is HIGHLY RECOMMENDED to use
+timeouts. In case if a remote does not respond, a request with no timeout gets stuck forever.
+
 # Example
 
 ## IEC 60870-5 104 (TCP)
@@ -52,7 +62,7 @@ use std::time::Duration;
 
 while let Ok(telegram) = telegram_rx.recv() {
     println!("{:?}", telegram);
-    if let Telegram104::I(i) = telegram a
+    if let Telegram104::I(i) = telegram {
         if i.data_type() == DataType::M_EP_TA_1 && i.cot() == COT::Cyclic {
             for iou in i.iou() {
                 let v: M_EP_TA_1 = iou.value().into();
