@@ -1,0 +1,25 @@
+[package]
+name = "roboplc-io-iec60870-5"
+version = "1.0.0"
+edition = "2021"
+authors = ["Serhij S. <div@altertech.com>"]
+license-file = "LICENSE.md"
+description = "RoboPLC I/O connector for TwinCAT/ADS"
+repository = "https://github.com/roboplc/roboplc-io-iec60870-5"
+keywords = ["realtime", "plc", "industrial", "iec 60870-5-101", "iec 60870-5-104"]
+readme = "README.md"
+autoexamples = false
+
+[dependencies]
+iec60870-5 = { version = "0.1" }
+once_cell = "1.19"
+roboplc = { version = "0.4", default-features = false }
+rtsc = "0.3"
+tracing = "0.1"
+
+[features]
+locking-default = ["roboplc/locking-default"]
+locking-rt = ["roboplc/locking-rt"]
+locking-rt-safe = ["roboplc/locking-rt-safe"]
+
+default = ["locking-rt-safe"]
