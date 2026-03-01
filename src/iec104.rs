@@ -1,20 +1,25 @@
 use core::fmt;
-use std::{collections::BTreeSet, io::Cursor, net::ToSocketAddrs, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeSet,
+    io::Cursor,
+    net::ToSocketAddrs,
+    sync::{Arc, LazyLock},
+    time::Duration,
+};
 
-static PUSH_COTS: Lazy<BTreeSet<COT>> =
-    Lazy::new(|| BTreeSet::from_iter([COT::Cyclic, COT::Background, COT::Spontan, COT::Init]));
+static PUSH_COTS: LazyLock<BTreeSet<COT>> =
+    LazyLock::new(|| BTreeSet::from_iter([COT::Cyclic, COT::Background, COT::Spontan, COT::Init]));
 
 use iec60870_5::{
     telegram104::{ChatSequenceCounter, Telegram104, Telegram104_S},
     types::COT,
 };
-use once_cell::sync::Lazy;
-use roboplc::{comm::ConnectionHandler, locking::Mutex};
 use roboplc::{
+    DataDeliveryPolicy, Error, Result,
     comm::{CommReader, Stream, Timeouts},
     policy_channel::{self, Receiver, Sender},
-    DataDeliveryPolicy, Result,
 };
+use roboplc::{comm::ConnectionHandler, locking::Mutex};
 use rtsc::{cell::DataCell, time::interval};
 use tracing::{debug, error, trace, warn};
 
@@ -132,8 +137,7 @@ struct Client104Inner {
 
 #[derive(Clone, Default)]
 struct IecConnectionHandler {
-    chat_seq: ChatSequenceCounter,
-    chat_seq_lock: Arc<Mutex<()>>,
+    chat_seq: Arc<Mutex<ChatSequenceCounter>>,
 }
 
 impl ConnectionHandler for IecConnectionHandler {
@@ -141,7 +145,7 @@ impl ConnectionHandler for IecConnectionHandler {
         &self,
         stream: &mut dyn Stream,
     ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.chat_seq.reset();
+        self.chat_seq.lock().reset();
         let mut req = Cursor::new(Vec::new());
         Telegram104::new_start_dt().write(&mut req)?;
         stream.write_all(&req.into_inner())?;
@@ -201,10 +205,11 @@ impl Client104Inner {
     }
 
     pub fn send(&self, mut frame: Telegram104) -> Result<()> {
-        let _chat_seq_lock = self
+        let mut chat_seq = self
             .connection_handler
-            .chat_seq_lock
-            .try_lock_for(self.timeouts.write);
+            .chat_seq
+            .try_lock_for(self.timeouts.write)
+            .ok_or_else(|| Error::failed("seq lock acquire timeout"))?;
         // lock session for I and S frames to prevent reconnects and chat sequence errors
         let _sess = if matches!(frame, Telegram104::I(_) | Telegram104::S(_)) {
             Some(self.client.lock_session()?)
@@ -212,7 +217,7 @@ impl Client104Inner {
             None
         };
         let mut req = Cursor::new(Vec::new());
-        frame.chat_sequence_apply_outgoing(&self.connection_handler.chat_seq);
+        frame.chat_sequence_apply_outgoing(&mut chat_seq);
         frame.write(&mut req).map_err(roboplc::Error::io)?;
         self.client.write(&req.into_inner())?;
         Ok(())
@@ -245,6 +250,7 @@ impl DataDeliveryPolicy for RestartEvent {
 /// IEC 60870-5 104 reader
 pub struct Reader {
     client: roboplc::comm::Client,
+    #[allow(clippy::struct_field_names)]
     reader_rx: Receiver<CommReader>,
     restart_rx: Receiver<RestartEvent>,
     restart_tx: Sender<RestartEvent>,
@@ -312,23 +318,20 @@ impl Reader {
                 }
             };
             {
-                let _chat_seq_lock = self.connection_handler.chat_seq_lock.lock();
-                if let Err(e) =
-                    telegram.chat_sequence_validate_incoming(&self.connection_handler.chat_seq)
-                {
+                let mut chat_seq = self.connection_handler.chat_seq.lock();
+                if let Err(e) = telegram.chat_sequence_validate_incoming(&mut chat_seq) {
                     error!(%e, "IEC 60870-5 104 reader chat sequence error");
                     break;
                 }
             }
-            if let Telegram104::I(ref i) = telegram {
-                if !PUSH_COTS.contains(&i.cot()) {
-                    if let Some(ref command_response_tx) = self.command_response_tx.lock().take() {
-                        if !command_response_tx.is_closed() {
-                            command_response_tx.set(telegram);
-                        }
-                        continue;
-                    }
+            if let Telegram104::I(ref i) = telegram
+                && !PUSH_COTS.contains(&i.cot())
+                && let Some(ref command_response_tx) = self.command_response_tx.lock().take()
+            {
+                if !command_response_tx.is_closed() {
+                    command_response_tx.set(telegram);
                 }
+                continue;
             }
             if self.telegram_tx.send(telegram).is_err() {
                 error!("IEC 60870-5 104 reader telegram_tx failed");
